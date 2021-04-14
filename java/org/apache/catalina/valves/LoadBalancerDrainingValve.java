@@ -223,8 +223,8 @@ public class LoadBalancerDrainingValve extends ValveBase {
                 sessionCookie.setPath(SessionConfig.getSessionCookiePath(request.getContext()));
                 sessionCookie.setMaxAge(0); // Delete
                 sessionCookie.setValue(""); // Purge the cookie's value
+                // Replicate logic used to set secure attribute for session cookies
                 SessionCookieConfig sessionCookieConfig = request.getContext().getServletContext().getSessionCookieConfig();
-                // Set "Secure" flag by default under SSL, or if explicitly wanted by configuration.
                 sessionCookie.setSecure(request.isSecure() || sessionCookieConfig.isSecure());
                 response.addCookie(sessionCookie);
             }

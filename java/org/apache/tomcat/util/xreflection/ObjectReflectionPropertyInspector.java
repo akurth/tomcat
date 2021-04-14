@@ -26,6 +26,7 @@ import java.util.Arrays;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.HashSet;
+import java.util.LinkedHashSet;
 import java.util.Map;
 import java.util.Set;
 import java.util.stream.Collectors;
@@ -52,7 +53,7 @@ public final class ObjectReflectionPropertyInspector {
 
         Set<SetPropertyClass> baseClasses = getKnownClasses()
             .stream()
-            .map(c -> processClass(c))
+            .map(ObjectReflectionPropertyInspector::processClass)
             .collect(Collectors.toSet());
         generateCode(
             baseClasses,
@@ -64,7 +65,7 @@ public final class ObjectReflectionPropertyInspector {
 
     private static final Set<Class<?>> getKnownClasses() throws ClassNotFoundException {
         return
-            Collections.unmodifiableSet(new HashSet<>(
+            Collections.unmodifiableSet(new LinkedHashSet<>(
                     Arrays.asList(
                         Class.forName("org.apache.catalina.authenticator.jaspic.SimpleAuthConfigProvider"),
                         Class.forName("org.apache.catalina.authenticator.jaspic.PersistentProviderRegistrations$Property"),

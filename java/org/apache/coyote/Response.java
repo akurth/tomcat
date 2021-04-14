@@ -51,8 +51,8 @@ import org.apache.tomcat.util.res.StringManager;
 public final class Response {
 
     private static final StringManager sm = StringManager.getManager(Response.class);
-
     private static final Log log = LogFactory.getLog(Response.class);
+
 
     // ----------------------------------------------------- Class Variables
 
@@ -126,9 +126,9 @@ public final class Response {
     private long commitTimeNanos = -1;
 
     /**
-     * Holds request error exception.
+     * Holds response writing error exception.
      */
-    Exception errorException = null;
+    private Exception errorException = null;
 
     /**
      * With the introduction of async processing and the possibility of
@@ -285,7 +285,8 @@ public final class Response {
     // -----------------Error State --------------------
 
     /**
-     * Set the error Exception that occurred during request processing.
+     * Set the error Exception that occurred during the writing of the response
+     * processing.
      *
      * @param ex The exception that occurred
      */
@@ -295,7 +296,7 @@ public final class Response {
 
 
     /**
-     * Get the Exception that occurred during request processing.
+     * Get the Exception that occurred during the writing of the response.
      *
      * @return The exception that occurred
      */
@@ -305,7 +306,7 @@ public final class Response {
 
 
     public boolean isExceptionPresent() {
-        return ( errorException != null );
+        return errorException != null;
     }
 
 
@@ -465,7 +466,9 @@ public final class Response {
     public void setLocale(Locale locale) {
 
         if (locale == null) {
-            return;  // throw an exception?
+            this.locale = null;
+            this.contentLanguage = null;
+            return;
         }
 
         // Save the locale for use by getLocale()
@@ -500,11 +503,13 @@ public final class Response {
             return;
         }
         if (characterEncoding == null) {
+            this.charset = null;
+            this.characterEncoding = null;
             return;
         }
 
-        this.charset = B2CConverter.getCharset(characterEncoding);
         this.characterEncoding = characterEncoding;
+        this.charset = B2CConverter.getCharset(characterEncoding);
     }
 
 
@@ -639,8 +644,10 @@ public final class Response {
         trailerFieldsSupplier = null;
         // Servlet 3.1 non-blocking write listener
         listener = null;
-        fireListener = false;
-        registeredForWrite = false;
+        synchronized (nonBlockingStateLock) {
+            fireListener = false;
+            registeredForWrite = false;
+        }
 
         // update counters
         contentWritten=0;
@@ -679,13 +686,16 @@ public final class Response {
      * need access to state.
      */
     volatile WriteListener listener;
+    // Ensures listener is only fired after a call is isReady()
     private boolean fireListener = false;
+    // Tracks write registration to prevent duplicate registrations
     private boolean registeredForWrite = false;
+    // Lock used to manage concurrent access to above flags
     private final Object nonBlockingStateLock = new Object();
 
     public WriteListener getWriteListener() {
         return listener;
-}
+    }
 
     public void setWriteListener(WriteListener listener) {
         if (listener == null) {

@@ -83,7 +83,7 @@ public class JsonErrorReportValve extends ErrorReportValve {
         }
         String jsonReport = "{\n" +
                             "  \"type\": \"" + type + "\",\n" +
-                            "  \"message\": \"" + message + "\"\n" +
+                            "  \"message\": \"" + message + "\",\n" +
                             "  \"description\": \"" + description + "\"\n" +
                             "}";
         try {
@@ -102,9 +102,7 @@ public class JsonErrorReportValve extends ErrorReportValve {
                 response.finishResponse();
                 return;
             }
-        } catch (IOException e) {
-            // Ignore
-        } catch (IllegalStateException e) {
+        } catch (IOException | IllegalStateException e) {
             // Ignore
         }
     }

@@ -304,9 +304,7 @@ public class NonBlockingCoordinator extends ChannelInterceptorBase {
             InetSocketAddress addr = new InetSocketAddress(ia, mbr.getPort());
             socket.connect(addr, (int) conTimeout);
             return true;
-        } catch (SocketTimeoutException sx) {
-            //do nothing, we couldn't connect
-        } catch (ConnectException cx) {
+        } catch (SocketTimeoutException | ConnectException x) {
             //do nothing, we couldn't connect
         } catch (Exception x) {
             log.error(sm.getString("nonBlockingCoordinator.memberAlive.failed"),x);
@@ -762,9 +760,14 @@ public class NonBlockingCoordinator extends ChannelInterceptorBase {
 
     @Override
     public void fireInterceptorEvent(InterceptorEvent event) {
-        if (event instanceof CoordinationEvent &&
-            ((CoordinationEvent)event).type == CoordinationEvent.EVT_CONF_RX) {
-            log.info(event);
+        if (event instanceof CoordinationEvent) {
+            if (((CoordinationEvent) event).type == CoordinationEvent.EVT_CONF_RX) {
+                log.info(event);
+            } else {
+                if (log.isDebugEnabled()) {
+                    log.debug(event);
+                }
+            }
         }
     }
 

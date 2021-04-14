@@ -79,14 +79,7 @@ public class CoyoteAdapter implements Adapter {
 
 
     private static final ThreadLocal<String> THREAD_NAME =
-            new ThreadLocal<String>() {
-
-                @Override
-                protected String initialValue() {
-                    return Thread.currentThread().getName();
-                }
-
-    };
+            ThreadLocal.withInitial(() -> Thread.currentThread().getName());
 
     // ----------------------------------------------------------- Constructors
 
@@ -155,21 +148,20 @@ public class CoyoteAdapter implements Adapter {
                 // trigger a close
                 success = false;
                 Throwable t = (Throwable)req.getAttribute(RequestDispatcher.ERROR_EXCEPTION);
-                req.getAttributes().remove(RequestDispatcher.ERROR_EXCEPTION);
+                Context context = request.getContext();
                 ClassLoader oldCL = null;
                 try {
-                    oldCL = request.getContext().bind(false, null);
+                    oldCL = context.bind(false, null);
                     if (req.getReadListener() != null) {
                         req.getReadListener().onError(t);
                     }
                     if (res.getWriteListener() != null) {
                         res.getWriteListener().onError(t);
                     }
-                } finally {
-                    request.getContext().unbind(false, oldCL);
-                }
-                if (t != null) {
+                    res.action(ActionCode.CLOSE_NOW, t);
                     asyncConImpl.setErrorState(t, true);
+                } finally {
+                    context.unbind(false, oldCL);
                 }
             }
 
@@ -178,42 +170,64 @@ public class CoyoteAdapter implements Adapter {
                 WriteListener writeListener = res.getWriteListener();
                 ReadListener readListener = req.getReadListener();
                 if (writeListener != null && status == SocketEvent.OPEN_WRITE) {
+                    Context context = request.getContext();
                     ClassLoader oldCL = null;
                     try {
-                        oldCL = request.getContext().bind(false, null);
+                        oldCL = context.bind(false, null);
                         res.onWritePossible();
                         if (request.isFinished() && req.sendAllDataReadEvent() &&
                                 readListener != null) {
                             readListener.onAllDataRead();
                         }
+                        // User code may have swallowed an IOException
+                        if (response.getCoyoteResponse().isExceptionPresent()) {
+                            throw response.getCoyoteResponse().getErrorException();
+                        }
                     } catch (Throwable t) {
                         ExceptionUtils.handleThrowable(t);
+                        // Need to trigger the call to AbstractProcessor.setErrorState()
+                        // before the listener is called so the listener can call complete
+                        // Therefore no need to set success=false as that would trigger a
+                        // second call to AbstractProcessor.setErrorState()
+                        // https://bz.apache.org/bugzilla/show_bug.cgi?id=65001
                         writeListener.onError(t);
-                        success = false;
+                        res.action(ActionCode.CLOSE_NOW, t);
+                        asyncConImpl.setErrorState(t, true);
                     } finally {
-                        request.getContext().unbind(false, oldCL);
+                        context.unbind(false, oldCL);
                     }
                 } else if (readListener != null && status == SocketEvent.OPEN_READ) {
+                    Context context = request.getContext();
                     ClassLoader oldCL = null;
                     try {
-                        oldCL = request.getContext().bind(false, null);
+                        oldCL = context.bind(false, null);
                         // If data is being read on a non-container thread a
                         // dispatch with status OPEN_READ will be used to get
                         // execution back on a container thread for the
                         // onAllDataRead() event. Therefore, make sure
                         // onDataAvailable() is not called in this case.
                         if (!request.isFinished()) {
-                            readListener.onDataAvailable();
+                            req.onDataAvailable();
                         }
                         if (request.isFinished() && req.sendAllDataReadEvent()) {
                             readListener.onAllDataRead();
                         }
+                        // User code may have swallowed an IOException
+                        if (request.getCoyoteRequest().isExceptionPresent()) {
+                            throw request.getCoyoteRequest().getErrorException();
+                        }
                     } catch (Throwable t) {
                         ExceptionUtils.handleThrowable(t);
+                        // Need to trigger the call to AbstractProcessor.setErrorState()
+                        // before the listener is called so the listener can call complete
+                        // Therefore no need to set success=false as that would trigger a
+                        // second call to AbstractProcessor.setErrorState()
+                        // https://bz.apache.org/bugzilla/show_bug.cgi?id=65001
                         readListener.onError(t);
-                        success = false;
+                        res.action(ActionCode.CLOSE_NOW, t);
+                        asyncConImpl.setErrorState(t, true);
                     } finally {
-                        request.getContext().unbind(false, oldCL);
+                        context.unbind(false, oldCL);
                     }
                 }
             }
